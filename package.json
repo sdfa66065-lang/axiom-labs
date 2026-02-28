@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "collect:start": "node scripts/collector/index.js",
+    "collect:once": "node scripts/collector/index.js --once",
+    "collect:calc": "node scripts/collector/index.js --once --calc"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
