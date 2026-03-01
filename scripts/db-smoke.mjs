@@ -1,4 +1,5 @@
 import { initDb } from "../db/init-db.mjs"
+import { runFunctionByName } from "../db/function-engine.mjs"
 
 const db = initDb()
 
@@ -12,9 +13,37 @@ const metricId = Number(metricInsert.run(
   "https://example.com/test-metric",
   60,
   JSON.stringify({ path: "$.price" }),
-  JSON.stringify({ op: "parseFloat" }),
+  JSON.stringify({ op: "float" }),
   1,
 ).lastInsertRowid)
+
+const functionInsert = db.prepare(`
+  INSERT INTO function_definitions (name, version, config_json, enabled)
+  VALUES (?, ?, ?, ?)
+`)
+
+functionInsert.run(
+  "D3_PEG",
+  "v1",
+  JSON.stringify({
+    inputs: {
+      P: { metric_store_as: "num" },
+    },
+    intermediates: {
+      diff: {
+        op: "abs_diff_from",
+        input: "P",
+        target: 1,
+      },
+    },
+    rules: [
+      { if: { lte: { var: "diff", value: 0.0001 } }, score: 20 },
+      { elif: { lte: { var: "diff", value: 0.001 } }, score: 15 },
+      { else: { score: 0 } },
+    ],
+  }),
+  1,
+)
 
 const observationInsert = db.prepare(`
   INSERT INTO observations (metric_id, ts, value_num, value_json, raw_json, status, error)
@@ -24,21 +53,37 @@ const observationInsert = db.prepare(`
 observationInsert.run(
   metricId,
   new Date().toISOString(),
-  42.5,
-  JSON.stringify({ value: 42.5 }),
-  JSON.stringify({ upstream: { value: "42.5" } }),
+  0.9999,
+  null,
+  JSON.stringify({ upstream: { value: "0.9999" } }),
   "ok",
   null,
 )
 
-const observation = db.prepare(`
-  SELECT id, metric_id, status, value_num
-  FROM observations
-  WHERE metric_id = ?
+const result = runFunctionByName(db, "D3_PEG")
+console.log("Function evaluation result:", result)
+
+const scoreRow = db.prepare(`
+  SELECT score_value, details_json, inputs_json
+  FROM function_scores
   ORDER BY id DESC
   LIMIT 1
-`).get(metricId)
+`).get()
 
-console.log("Latest observation:", observation)
+const details = JSON.parse(scoreRow.details_json)
+
+if (scoreRow.score_value !== 20) {
+  throw new Error(`Expected score_value=20, got ${scoreRow.score_value}`)
+}
+
+if (details.diff !== 0.0001) {
+  throw new Error(`Expected diff=0.0001, got ${details.diff}`)
+}
+
+console.log("Acceptance check passed:", {
+  score_value: scoreRow.score_value,
+  diff: details.diff,
+  P: details.P,
+})
 
 db.close()

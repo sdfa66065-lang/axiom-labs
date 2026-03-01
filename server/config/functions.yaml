@@ -1,1 +1,26 @@
-functions: []
+functions:
+  - name: D3_PEG
+    version: v1
+    enabled: true
+    config:
+      inputs:
+        P:
+          metric_store_as: num
+      intermediates:
+        diff:
+          op: abs_diff_from
+          input: P
+          target: 1
+      rules:
+        - if:
+            lte:
+              var: diff
+              value: 0.0001
+          score: 20
+        - elif:
+            lte:
+              var: diff
+              value: 0.001
+          score: 15
+        - else:
+            score: 0
