@@ -71,3 +71,38 @@ export default defineConfig([
   },
 ])
 ```
+
+## Local database setup
+
+The app now initializes a SQLite database on startup at `data/observations.db`.
+
+### Run locally
+
+```bash
+npm install
+npm run dev
+```
+
+Starting the Vite server auto-creates the DB file and these tables:
+- `metric_definitions`
+- `observations`
+- `function_definitions`
+- `function_scores`
+
+### Seed config rows
+
+```bash
+npm run seed:db
+```
+
+You can also seed through the dev route while `npm run dev` is running:
+
+```bash
+curl -X POST http://localhost:5173/api/seed-configs
+```
+
+### Insert + query smoke check
+
+```bash
+npm run test:db
+```
