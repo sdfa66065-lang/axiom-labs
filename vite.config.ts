@@ -26,9 +26,12 @@ function dbDevRoutesPlugin() {
 
       const { initDb } = await import("./db/init-db.mjs")
       const { runMetricByStoreAs } = await import("./db/collector-engine.mjs")
+      const { startMetricScheduler } = await import("./db/collector-scheduler.mjs")
       const db = initDb()
+      const scheduler = await startMetricScheduler(db, { logger: server.config.logger })
 
       server.httpServer?.once("close", () => {
+        scheduler.stop()
         db.close()
       })
 
