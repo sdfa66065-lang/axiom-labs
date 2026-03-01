@@ -25,7 +25,7 @@ function dbDevRoutesPlugin() {
       }
 
       const { initDb } = await import("./db/init-db.mjs")
-      const { runMetricByStoreAs } = await import("./db/collector-engine.mjs")
+      const { runMetricByStoreAs, runMetricById } = await import("./db/collector-engine.mjs")
       const db = initDb()
 
       server.httpServer?.once("close", () => {
@@ -359,16 +359,15 @@ function dbDevRoutesPlugin() {
 
           try {
             const metricId = Number(runMetricMatch[1])
-            const metric = db.prepare("SELECT store_as FROM metric_definitions WHERE id = ? LIMIT 1").get(metricId)
 
-            if (!metric?.store_as) {
-              res.statusCode = 404
+            if (!Number.isInteger(metricId) || metricId <= 0) {
+              res.statusCode = 400
               res.setHeader("Content-Type", "application/json")
-              res.end(JSON.stringify({ ok: false, error: "Metric not found" }))
+              res.end(JSON.stringify({ ok: false, error: "Invalid metric id" }))
               return
             }
 
-            const result = await runMetricByStoreAs(db, metric.store_as)
+            const result = await runMetricById(db, metricId)
             res.statusCode = result.ok ? 200 : 500
             res.setHeader("Content-Type", "application/json")
             res.end(JSON.stringify(result))
