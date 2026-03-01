@@ -35,6 +35,29 @@ const insertFunction = db.prepare(`
   VALUES (?, ?, ?, ?)
 `)
 
+const metricRows = [
+  {
+    storeAs: "last_price_usdt",
+    url: "https://www.okx.com/api/v5/market/ticker?instId=DAI-USDT",
+    everySeconds: 3600,
+    extractJson: { path: "response.data[0].last" },
+    transformJson: { op: "float" },
+  },
+]
+
+const insertedMetricIds = []
+for (const metric of metricRows) {
+  const result = insertMetric.run(
+    metric.storeAs,
+    metric.url,
+    metric.everySeconds,
+    JSON.stringify(metric.extractJson),
+    JSON.stringify(metric.transformJson),
+    1,
+  )
+
+  insertedMetricIds.push(Number(result.lastInsertRowid))
+}
 const updateFunction = db.prepare(`
   UPDATE function_definitions
   SET config_json = ?, enabled = ?
@@ -95,7 +118,7 @@ for (const fn of functionsConfig.functions ?? []) {
 }
 
 console.log(`Seeded DB at ${getDbPath()}`)
-console.log(`Upserted metrics (${metricKeys.length}): ${metricKeys.join(", ")}`)
-console.log(`Upserted functions (${functionKeys.length}): ${functionKeys.join(", ")}`)
+console.log(`Inserted metric_definitions row ids=${insertedMetricIds.join(",")}`)
+console.log(`Inserted function_definitions row id=${functionRow.id}`)
 
 db.close()
