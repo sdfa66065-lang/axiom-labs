@@ -19,6 +19,41 @@ function toFiniteNumber(value) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function resolveFunctionDefinition(db, name, options = {}) {
+  if (options.version) {
+    const versioned = db.prepare(`
+      SELECT id, name, version, config_json, enabled
+      FROM function_definitions
+      WHERE name = ? AND version = ?
+      LIMIT 1
+    `).get(name, options.version)
+
+    if (!versioned) {
+      throw new Error(`Function not found: ${name}@${options.version}`)
+    }
+
+    if (!versioned.enabled) {
+      throw new Error(`Function is disabled: ${name}@${options.version}`)
+    }
+
+    return versioned
+  }
+
+  const latestEnabled = db.prepare(`
+    SELECT id, name, version, config_json, enabled
+    FROM function_definitions
+    WHERE name = ? AND enabled = 1
+    ORDER BY id DESC
+    LIMIT 1
+  `).get(name)
+
+  if (!latestEnabled) {
+    throw new Error(`No enabled versions found for function: ${name}`)
+  }
+
+  return latestEnabled
+}
+
 function resolveLatestObservationValue(db, storeAs) {
   const row = db.prepare(`
     SELECT o.value_num AS value_num
@@ -96,21 +131,8 @@ function evaluateRules(rules, values) {
   throw new Error("No matching rule found")
 }
 
-export function runFunctionByName(db, name) {
-  const fn = db.prepare(`
-    SELECT id, name, version, config_json, enabled
-    FROM function_definitions
-    WHERE name = ?
-    LIMIT 1
-  `).get(name)
-
-  if (!fn) {
-    throw new Error(`Function not found: ${name}`)
-  }
-
-  if (!fn.enabled) {
-    throw new Error(`Function is disabled: ${name}`)
-  }
+export function runFunctionByName(db, name, options = {}) {
+  const fn = resolveFunctionDefinition(db, name, options)
 
   const config = parseJsonConfig(fn.config_json)
   const inputConfig = config.inputs ?? {}

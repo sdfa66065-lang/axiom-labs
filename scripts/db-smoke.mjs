@@ -22,28 +22,26 @@ const functionInsert = db.prepare(`
   VALUES (?, ?, ?, ?)
 `)
 
-functionInsert.run(
-  "D3_PEG",
-  "v1",
-  JSON.stringify({
-    inputs: {
-      P: { metric_store_as: "num" },
+const baseConfig = {
+  inputs: {
+    P: { metric_store_as: "num" },
+  },
+  intermediates: {
+    diff: {
+      op: "abs_diff_from",
+      input: "P",
+      target: 1,
     },
-    intermediates: {
-      diff: {
-        op: "abs_diff_from",
-        input: "P",
-        target: 1,
-      },
-    },
-    rules: [
-      { if: { lte: { var: "diff", value: 0.0001 } }, score: 20 },
-      { elif: { lte: { var: "diff", value: 0.001 } }, score: 15 },
-      { else: { score: 0 } },
-    ],
-  }),
-  1,
-)
+  },
+  rules: [
+    { if: { lte: { var: "diff", value: 0.0001 } }, score: 20 },
+    { elif: { lte: { var: "diff", value: 0.001 } }, score: 15 },
+    { else: { score: 0 } },
+  ],
+}
+
+functionInsert.run("D3_PEG", "v1", JSON.stringify(baseConfig), 1)
+functionInsert.run("D3_PEG", "v0", JSON.stringify({ ...baseConfig, rules: [{ else: { score: 0 } }] }), 0)
 
 const observationInsert = db.prepare(`
   INSERT INTO observations (metric_id, ts, value_num, value_json, raw_json, status, error)
@@ -63,6 +61,10 @@ observationInsert.run(
 const result = runFunctionByName(db, "D3_PEG")
 console.log("Function evaluation result:", result)
 
+if (result.version !== "v1") {
+  throw new Error(`Expected latest enabled version=v1, got ${result.version}`)
+}
+
 const scoreRow = db.prepare(`
   SELECT score_value, details_json, inputs_json
   FROM function_scores
@@ -80,10 +82,27 @@ if (details.diff !== 0.0001) {
   throw new Error(`Expected diff=0.0001, got ${details.diff}`)
 }
 
+const explicitVersionResult = runFunctionByName(db, "D3_PEG", { version: "v1" })
+if (explicitVersionResult.version !== "v1") {
+  throw new Error(`Expected explicit version=v1, got ${explicitVersionResult.version}`)
+}
+
+let disabledVersionRejected = false
+try {
+  runFunctionByName(db, "D3_PEG", { version: "v0" })
+} catch {
+  disabledVersionRejected = true
+}
+
+if (!disabledVersionRejected) {
+  throw new Error("Expected disabled explicit version to throw")
+}
+
 console.log("Acceptance check passed:", {
   score_value: scoreRow.score_value,
   diff: details.diff,
   P: details.P,
+  selected_version: result.version,
 })
 
 db.close()

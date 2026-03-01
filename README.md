@@ -108,6 +108,8 @@ Run a config-driven scoring function against latest observations:
 
 ```bash
 npm run run:function -- D3_PEG
+# optionally pin a version
+npm run run:function -- D3_PEG v1
 ```
 
 ### Insert + query smoke check
