@@ -13,6 +13,10 @@ const db = initDb()
 try {
   const result = await runMetricByStoreAs(db, storeAs, { timeoutMs: 5000, retries: 2 })
   console.log(JSON.stringify(result, null, 2))
+
+  if (!result.ok) {
+    process.exitCode = 1
+  }
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))
   process.exitCode = 1
