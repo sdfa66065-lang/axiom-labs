@@ -133,3 +133,30 @@ Expected response:
 ```json
 {"ok":true}
 ```
+
+
+### Auto collectors scheduler (dev server)
+
+Enabled metrics are automatically collected in-process using `node-cron` when `npm run dev` starts. Each run logs:
+- start
+- end status
+- duration
+- error (if any)
+
+To verify observations increase over time:
+
+```bash
+npm install
+npm run seed:db
+npm run dev
+```
+
+Then in another terminal:
+
+```bash
+sqlite3 data/observations.db "SELECT COUNT(*) FROM observations;"
+sleep 5
+sqlite3 data/observations.db "SELECT COUNT(*) FROM observations;"
+```
+
+The second count should be higher.

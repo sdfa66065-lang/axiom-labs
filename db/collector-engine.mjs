@@ -230,20 +230,9 @@ async function fetchJsonWithRetry(url, options = {}) {
   throw lastError instanceof Error ? lastError : new Error("Fetch failed")
 }
 
-export async function runMetricByStoreAs(db, storeAs, options = {}) {
-  const metric = db.prepare(`
-    SELECT id, store_as, url, extract_json, transform_json, enabled
-    FROM metric_definitions
-    WHERE store_as = ?
-    LIMIT 1
-  `).get(storeAs)
-
-  if (!metric) {
-    throw new Error(`Metric not found: ${storeAs}`)
-  }
-
+async function runMetric(db, metric, options = {}) {
   if (!metric.enabled) {
-    throw new Error(`Metric is disabled: ${storeAs}`)
+    throw new Error(`Metric is disabled: ${metric.store_as}`)
   }
 
   const ts = new Date().toISOString()
@@ -303,4 +292,34 @@ export async function runMetricByStoreAs(db, storeAs, options = {}) {
       error: message,
     }
   }
+}
+
+export async function runMetricByStoreAs(db, storeAs, options = {}) {
+  const metric = db.prepare(`
+    SELECT id, store_as, url, extract_json, transform_json, enabled
+    FROM metric_definitions
+    WHERE store_as = ?
+    LIMIT 1
+  `).get(storeAs)
+
+  if (!metric) {
+    throw new Error(`Metric not found: ${storeAs}`)
+  }
+
+  return runMetric(db, metric, options)
+}
+
+export async function runMetricById(db, metricId, options = {}) {
+  const metric = db.prepare(`
+    SELECT id, store_as, url, extract_json, transform_json, enabled
+    FROM metric_definitions
+    WHERE id = ?
+    LIMIT 1
+  `).get(metricId)
+
+  if (!metric) {
+    throw new Error(`Metric not found: id=${metricId}`)
+  }
+
+  return runMetric(db, metric, options)
 }
