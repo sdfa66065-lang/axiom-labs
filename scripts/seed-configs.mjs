@@ -1,10 +1,33 @@
+import fs from "node:fs"
+import path from "node:path"
+import yaml from "js-yaml"
 import { initDb, getDbPath } from "../db/init-db.mjs"
 
 const db = initDb()
+const configDir = path.resolve(process.cwd(), "server", "config")
+
+function loadYamlConfig(filename) {
+  const filePath = path.join(configDir, filename)
+  const fileContent = fs.readFileSync(filePath, "utf8")
+  return yaml.load(fileContent)
+}
+
+const metricsConfig = loadYamlConfig("metrics.yaml")
+const functionsConfig = loadYamlConfig("functions.yaml")
 
 const insertMetric = db.prepare(`
   INSERT INTO metric_definitions (store_as, url, every_seconds, extract_json, transform_json, enabled)
   VALUES (?, ?, ?, ?, ?, ?)
+`)
+
+const updateMetric = db.prepare(`
+  UPDATE metric_definitions
+  SET store_as = ?, every_seconds = ?, extract_json = ?, transform_json = ?, enabled = ?
+  WHERE id = ?
+`)
+
+const selectMetricByUrl = db.prepare(`
+  SELECT id FROM metric_definitions WHERE url = ? LIMIT 1
 `)
 
 const insertFunction = db.prepare(`
@@ -12,28 +35,67 @@ const insertFunction = db.prepare(`
   VALUES (?, ?, ?, ?)
 `)
 
-insertMetric.run(
-  "json",
-  "https://example.com/metric",
-  300,
-  JSON.stringify({ path: "$.data.value" }),
-  JSON.stringify({ op: "identity" }),
-  1,
-)
+const updateFunction = db.prepare(`
+  UPDATE function_definitions
+  SET config_json = ?, enabled = ?
+  WHERE id = ?
+`)
 
-const metricRow = db.prepare("SELECT last_insert_rowid() AS id").get()
+const selectFunction = db.prepare(`
+  SELECT id FROM function_definitions WHERE name = ? AND version = ? LIMIT 1
+`)
 
-insertFunction.run(
-  "risk_score",
-  "v1",
-  JSON.stringify({ weights: { volatility: 0.7, liquidity: 0.3 } }),
-  1,
-)
+const metricKeys = []
+for (const metric of metricsConfig.metrics ?? []) {
+  const existingMetric = selectMetricByUrl.get(metric.url)
 
-const functionRow = db.prepare("SELECT last_insert_rowid() AS id").get()
+  if (existingMetric) {
+    updateMetric.run(
+      metric.store_as,
+      metric.every_seconds,
+      JSON.stringify(metric.extract_json ?? null),
+      JSON.stringify(metric.transform_json ?? null),
+      metric.enabled === false ? 0 : 1,
+      existingMetric.id,
+    )
+  } else {
+    insertMetric.run(
+      metric.store_as,
+      metric.url,
+      metric.every_seconds,
+      JSON.stringify(metric.extract_json ?? null),
+      JSON.stringify(metric.transform_json ?? null),
+      metric.enabled === false ? 0 : 1,
+    )
+  }
+
+  metricKeys.push(metric.key)
+}
+
+const functionKeys = []
+for (const fn of functionsConfig.functions ?? []) {
+  const existingFunction = selectFunction.get(fn.name, fn.version)
+
+  if (existingFunction) {
+    updateFunction.run(
+      JSON.stringify(fn.config ?? {}),
+      fn.enabled === false ? 0 : 1,
+      existingFunction.id,
+    )
+  } else {
+    insertFunction.run(
+      fn.name,
+      fn.version,
+      JSON.stringify(fn.config ?? {}),
+      fn.enabled === false ? 0 : 1,
+    )
+  }
+
+  functionKeys.push(`${fn.name}@${fn.version}`)
+}
 
 console.log(`Seeded DB at ${getDbPath()}`)
-console.log(`Inserted metric_definitions row id=${metricRow.id}`)
-console.log(`Inserted function_definitions row id=${functionRow.id}`)
+console.log(`Upserted metrics (${metricKeys.length}): ${metricKeys.join(", ")}`)
+console.log(`Upserted functions (${functionKeys.length}): ${functionKeys.join(", ")}`)
 
 db.close()

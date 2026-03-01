@@ -1,0 +1,9 @@
+metrics:
+  - key: P_USDT
+    store_as: num
+    url: https://api.example.com/markets/usdt-usd
+    every_seconds: 60
+    extract_json:
+      path: $.data.price
+    transform_json:
+      op: parseFloat
