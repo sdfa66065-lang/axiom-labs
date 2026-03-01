@@ -18,8 +18,12 @@ function parseJsonConfig(input, fallback = {}) {
 }
 
 function tokenizeJsonPath(path) {
-  if (!path || typeof path !== "string") {
+  if (path == null || path === "") {
     return []
+  }
+
+  if (typeof path !== "string") {
+    return null
   }
 
   let normalizedPath = path.trim()
@@ -32,7 +36,7 @@ function tokenizeJsonPath(path) {
   }
 
   if (!normalizedPath.startsWith("$")) {
-    return []
+    return null
   }
 
   const tokens = []
@@ -48,7 +52,7 @@ function tokenizeJsonPath(path) {
       }
 
       if (!key) {
-        return []
+        return null
       }
 
       tokens.push({ type: "key", value: key })
@@ -64,7 +68,7 @@ function tokenizeJsonPath(path) {
       }
 
       if (normalizedPath[i] !== "]") {
-        return []
+        return null
       }
 
       i += 1
@@ -77,13 +81,13 @@ function tokenizeJsonPath(path) {
       ) {
         tokens.push({ type: "key", value: trimmed.slice(1, -1) })
       } else {
-        return []
+        return null
       }
 
       continue
     }
 
-    return []
+    return null
   }
 
   return tokens
@@ -91,6 +95,10 @@ function tokenizeJsonPath(path) {
 
 function extractJsonPath(source, path) {
   const tokens = tokenizeJsonPath(path)
+  if (tokens === null) {
+    throw new Error(`Invalid extract path: ${path}`)
+  }
+
   if (!tokens.length) {
     return source
   }
@@ -246,6 +254,10 @@ export async function runMetricByStoreAs(db, storeAs, options = {}) {
     const transformConfig = parseJsonConfig(metric.transform_json)
 
     const extracted = extractJsonPath(rawJson, extractConfig.path)
+    if (extracted === undefined) {
+      throw new Error(`Extract path not found: ${extractConfig.path}`)
+    }
+
     const transformed = applyTransform(extracted, rawJson, transformConfig)
 
     const valueNum = typeof transformed === "object" && transformed !== null
