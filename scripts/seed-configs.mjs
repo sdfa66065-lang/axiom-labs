@@ -12,16 +12,29 @@ const insertFunction = db.prepare(`
   VALUES (?, ?, ?, ?)
 `)
 
-insertMetric.run(
-  "json",
-  "https://example.com/metric",
-  300,
-  JSON.stringify({ path: "$.data.value" }),
-  JSON.stringify({ op: "identity" }),
-  1,
-)
+const metricRows = [
+  {
+    storeAs: "last_price_usdt",
+    url: "https://www.okx.com/api/v5/market/ticker?instId=DAI-USDT",
+    everySeconds: 3600,
+    extractJson: { path: "response.data[0].last" },
+    transformJson: { op: "float" },
+  },
+]
 
-const metricRow = db.prepare("SELECT last_insert_rowid() AS id").get()
+const insertedMetricIds = []
+for (const metric of metricRows) {
+  const result = insertMetric.run(
+    metric.storeAs,
+    metric.url,
+    metric.everySeconds,
+    JSON.stringify(metric.extractJson),
+    JSON.stringify(metric.transformJson),
+    1,
+  )
+
+  insertedMetricIds.push(Number(result.lastInsertRowid))
+}
 
 insertFunction.run(
   "risk_score",
@@ -33,7 +46,7 @@ insertFunction.run(
 const functionRow = db.prepare("SELECT last_insert_rowid() AS id").get()
 
 console.log(`Seeded DB at ${getDbPath()}`)
-console.log(`Inserted metric_definitions row id=${metricRow.id}`)
+console.log(`Inserted metric_definitions row ids=${insertedMetricIds.join(",")}`)
 console.log(`Inserted function_definitions row id=${functionRow.id}`)
 
 db.close()

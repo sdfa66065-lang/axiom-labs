@@ -25,6 +25,7 @@ function dbDevRoutesPlugin() {
       }
 
       const { initDb } = await import("./db/init-db.mjs")
+      const { runMetricByStoreAs } = await import("./db/collector-engine.mjs")
       const db = initDb()
 
       server.httpServer?.once("close", () => {
@@ -40,15 +41,17 @@ function dbDevRoutesPlugin() {
         }
 
         try {
-          db.prepare(`
+          const insertMetric = db.prepare(`
             INSERT INTO metric_definitions (store_as, url, every_seconds, extract_json, transform_json, enabled)
             VALUES (?, ?, ?, ?, ?, ?)
-          `).run(
-            "json",
-            "https://example.com/metric",
-            300,
-            JSON.stringify({ path: "$.data.value" }),
-            JSON.stringify({ op: "identity" }),
+          `)
+
+          insertMetric.run(
+            "last_price_usdt",
+            "https://www.okx.com/api/v5/market/ticker?instId=DAI-USDT",
+            3600,
+            JSON.stringify({ path: "response.data[0].last" }),
+            JSON.stringify({ op: "float" }),
             1,
           )
 
@@ -81,6 +84,45 @@ function dbDevRoutesPlugin() {
             error: error instanceof Error ? error.message : "Unknown error",
           }))
         }
+      })
+
+      server.middlewares.use("/api/run-metric", async (req, res) => {
+        if (req.method !== "POST") {
+          res.statusCode = 405
+          res.setHeader("Content-Type", "application/json")
+          res.end(JSON.stringify({ error: "Method not allowed" }))
+          return
+        }
+
+        const chunks: Buffer[] = []
+
+        req.on("data", (chunk) => chunks.push(chunk))
+        req.on("end", async () => {
+          try {
+            const payload = chunks.length
+              ? JSON.parse(Buffer.concat(chunks).toString("utf8"))
+              : {}
+
+            if (!payload.storeAs) {
+              res.statusCode = 400
+              res.setHeader("Content-Type", "application/json")
+              res.end(JSON.stringify({ ok: false, error: "storeAs is required" }))
+              return
+            }
+
+            const result = await runMetricByStoreAs(db, payload.storeAs)
+            res.statusCode = result.ok ? 200 : 500
+            res.setHeader("Content-Type", "application/json")
+            res.end(JSON.stringify(result))
+          } catch (error) {
+            res.statusCode = 500
+            res.setHeader("Content-Type", "application/json")
+            res.end(JSON.stringify({
+              ok: false,
+              error: error instanceof Error ? error.message : "Unknown error",
+            }))
+          }
+        })
       })
     },
   }
