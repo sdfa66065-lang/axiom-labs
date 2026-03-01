@@ -71,3 +71,29 @@ export default defineConfig([
   },
 ])
 ```
+
+## Running frontend + backend
+
+1. Install frontend dependencies and start Vite:
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+2. In a second terminal, install backend dependencies and start the API server:
+   ```bash
+   cd server
+   npm install
+   npm run dev
+   ```
+
+3. Verify backend health while frontend is running:
+   ```bash
+   curl http://localhost:8080/health
+   ```
+
+Expected response:
+
+```json
+{"ok":true}
+```
