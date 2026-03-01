@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed:db": "node scripts/seed-configs.mjs",
+    "test:db": "node scripts/db-smoke.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
