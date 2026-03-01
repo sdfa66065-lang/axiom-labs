@@ -2,12 +2,29 @@ import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { inspectAttr } from "kimi-plugin-inspect-react"
-import { initDb } from "./db/init-db.mjs"
+
+function supportsNodeSqlite() {
+  const [major, minor] = process.versions.node.split(".").map(Number)
+
+  if (!Number.isFinite(major) || !Number.isFinite(minor)) {
+    return false
+  }
+
+  return major > 22 || (major === 22 && minor >= 5)
+}
 
 function dbDevRoutesPlugin() {
   return {
     name: "db-dev-routes",
-    configureServer(server: import("vite").ViteDevServer) {
+    async configureServer(server: import("vite").ViteDevServer) {
+      if (!supportsNodeSqlite()) {
+        server.config.logger.warn(
+          `[db-dev-routes] Skipping /api/seed-configs route because node:sqlite is unavailable on Node ${process.versions.node}.`,
+        )
+        return
+      }
+
+      const { initDb } = await import("./db/init-db.mjs")
       const db = initDb()
 
       server.httpServer?.once("close", () => {
@@ -70,12 +87,12 @@ function dbDevRoutesPlugin() {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   base: "./",
-  plugins: [inspectAttr(), react(), dbDevRoutesPlugin()],
+  plugins: [inspectAttr(), react(), ...(command === "serve" ? [dbDevRoutesPlugin()] : [])],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
-})
+}))
