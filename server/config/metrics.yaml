@@ -6,4 +6,4 @@ metrics:
     extract_json:
       path: $.data.price
     transform_json:
-      op: parseFloat
+      op: float

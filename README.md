@@ -102,6 +102,16 @@ You can also seed through the dev route while `npm run dev` is running:
 curl -X POST http://localhost:5173/api/seed-configs
 ```
 
+### Evaluate scoring function
+
+Run a config-driven scoring function against latest observations:
+
+```bash
+npm run run:function -- D3_PEG
+# optionally pin a version
+npm run run:function -- D3_PEG v1
+```
+
 ### Insert + query smoke check
 
 ```bash

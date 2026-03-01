@@ -35,29 +35,6 @@ const insertFunction = db.prepare(`
   VALUES (?, ?, ?, ?)
 `)
 
-const metricRows = [
-  {
-    storeAs: "last_price_usdt",
-    url: "https://www.okx.com/api/v5/market/ticker?instId=DAI-USDT",
-    everySeconds: 3600,
-    extractJson: { path: "response.data[0].last" },
-    transformJson: { op: "float" },
-  },
-]
-
-const insertedMetricIds = []
-for (const metric of metricRows) {
-  const result = insertMetric.run(
-    metric.storeAs,
-    metric.url,
-    metric.everySeconds,
-    JSON.stringify(metric.extractJson),
-    JSON.stringify(metric.transformJson),
-    1,
-  )
-
-  insertedMetricIds.push(Number(result.lastInsertRowid))
-}
 const updateFunction = db.prepare(`
   UPDATE function_definitions
   SET config_json = ?, enabled = ?
@@ -68,7 +45,7 @@ const selectFunction = db.prepare(`
   SELECT id FROM function_definitions WHERE name = ? AND version = ? LIMIT 1
 `)
 
-const metricKeys = []
+let upsertedMetrics = 0
 for (const metric of metricsConfig.metrics ?? []) {
   const existingMetric = selectMetricByUrl.get(metric.url)
 
@@ -92,10 +69,10 @@ for (const metric of metricsConfig.metrics ?? []) {
     )
   }
 
-  metricKeys.push(metric.key)
+  upsertedMetrics += 1
 }
 
-const functionKeys = []
+let upsertedFunctions = 0
 for (const fn of functionsConfig.functions ?? []) {
   const existingFunction = selectFunction.get(fn.name, fn.version)
 
@@ -114,11 +91,11 @@ for (const fn of functionsConfig.functions ?? []) {
     )
   }
 
-  functionKeys.push(`${fn.name}@${fn.version}`)
+  upsertedFunctions += 1
 }
 
 console.log(`Seeded DB at ${getDbPath()}`)
-console.log(`Inserted metric_definitions row ids=${insertedMetricIds.join(",")}`)
-console.log(`Inserted function_definitions row id=${functionRow.id}`)
+console.log(`Upserted metric_definitions count=${upsertedMetrics}`)
+console.log(`Upserted function_definitions count=${upsertedFunctions}`)
 
 db.close()
