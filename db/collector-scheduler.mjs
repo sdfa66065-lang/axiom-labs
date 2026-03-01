@@ -1,4 +1,4 @@
-import { runMetricByStoreAs } from "./collector-engine.mjs"
+import { runMetricById } from "./collector-engine.mjs"
 
 const EVERY_SECOND_CRON = "* * * * * *"
 
@@ -20,7 +20,7 @@ export async function startMetricScheduler(db, options = {}) {
   const logger = options.logger ?? console
   const cron = await loadCron()
   const enabledMetrics = db.prepare(`
-    SELECT store_as, every_seconds
+    SELECT id, store_as, every_seconds
     FROM metric_definitions
     WHERE enabled = 1
   `).all()
@@ -31,7 +31,7 @@ export async function startMetricScheduler(db, options = {}) {
     const everySeconds = Number(metric.every_seconds)
 
     if (!Number.isFinite(everySeconds) || everySeconds <= 0) {
-      logger.warn(`[collector-scheduler] Skipping ${metric.store_as}: invalid every_seconds=${metric.every_seconds}`)
+      logger.warn(`[collector-scheduler] Skipping metric_id=${metric.id} store_as=${metric.store_as}: invalid every_seconds=${metric.every_seconds}`)
       continue
     }
 
@@ -45,24 +45,24 @@ export async function startMetricScheduler(db, options = {}) {
       }
 
       if (isRunning) {
-        logger.warn(`[collector-scheduler] Skipping ${metric.store_as}: previous run still in progress`)
+        logger.warn(`[collector-scheduler] Skipping metric_id=${metric.id} store_as=${metric.store_as}: previous run still in progress`)
         return
       }
 
       isRunning = true
       lastRunAtMs = currentTimeMs
       const startedAt = currentTimeMs
-      logger.info(`[collector-scheduler] START store_as=${metric.store_as}`)
+      logger.info(`[collector-scheduler] START metric_id=${metric.id} store_as=${metric.store_as}`)
 
       try {
-        const result = await runMetricByStoreAs(db, metric.store_as)
+        const result = await runMetricById(db, metric.id)
         const durationMs = nowMs() - startedAt
 
         if (result.ok) {
-          logger.info(`[collector-scheduler] END store_as=${metric.store_as} status=ok duration_ms=${durationMs}`)
+          logger.info(`[collector-scheduler] END metric_id=${metric.id} store_as=${metric.store_as} status=ok duration_ms=${durationMs}`)
         } else {
           logger.error(
-            `[collector-scheduler] END store_as=${metric.store_as} status=error duration_ms=${durationMs} error=${result.error ?? "unknown"}`,
+            `[collector-scheduler] END metric_id=${metric.id} store_as=${metric.store_as} status=error duration_ms=${durationMs} error=${result.error ?? "unknown"}`,
           )
         }
       } catch (error) {
@@ -70,7 +70,7 @@ export async function startMetricScheduler(db, options = {}) {
         const message = error instanceof Error ? error.message : "Unknown error"
 
         logger.error(
-          `[collector-scheduler] END store_as=${metric.store_as} status=error duration_ms=${durationMs} error=${message}`,
+          `[collector-scheduler] END metric_id=${metric.id} store_as=${metric.store_as} status=error duration_ms=${durationMs} error=${message}`,
         )
       } finally {
         isRunning = false
@@ -79,7 +79,7 @@ export async function startMetricScheduler(db, options = {}) {
 
     tasks.push(task)
     logger.info(
-      `[collector-scheduler] Scheduled store_as=${metric.store_as} every_seconds=${everySeconds} cron="${EVERY_SECOND_CRON}"`,
+      `[collector-scheduler] Scheduled metric_id=${metric.id} store_as=${metric.store_as} every_seconds=${everySeconds} cron="${EVERY_SECOND_CRON}"`,
     )
   }
 
