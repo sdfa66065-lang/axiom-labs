@@ -11,8 +11,7 @@ async function loadCron() {
     const module = await import("node-cron")
     return module.default
   } catch {
-    const fallback = await import("../server/node_modules/node-cron/dist/esm/node-cron.js")
-    return fallback.default
+    throw new Error("Failed to load node-cron module. Please ensure it is installed.")
   }
 }
 
