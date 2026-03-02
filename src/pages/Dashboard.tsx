@@ -120,10 +120,14 @@ export default function Dashboard() {
     return Math.sqrt(variance) * 100;
   }, [metrics]);
 
+  const scoredMetrics = useMemo(() => {
+    return metrics.filter((metric) => typeof metric.latest?.valueNum === 'number');
+  }, [metrics]);
+
   const rankedAssets = useMemo(() => {
-    return metrics
+    return scoredMetrics
       .map((metric) => {
-        const baseScore = typeof metric.latest?.valueNum === 'number' ? Math.max(0, Math.min(metric.latest.valueNum * 100, 100)) : 0;
+        const baseScore = Math.max(0, Math.min((metric.latest?.valueNum ?? 0) * 100, 100));
         const score = Number(baseScore.toFixed(1));
         const grade = toGrade(score);
 
@@ -136,9 +140,10 @@ export default function Dashboard() {
         };
       })
       .sort((a, b) => b.score - a.score);
-  }, [metrics]);
+  }, [scoredMetrics]);
 
   const highRiskCount = rankedAssets.filter((asset) => asset.score < 70).length;
+  const unavailableMetricCount = metrics.length - scoredMetrics.length;
 
   return (
     <div className="min-h-screen bg-navy-primary text-white pt-24 px-[7vw] pb-20">
@@ -178,6 +183,9 @@ export default function Dashboard() {
               <span className="font-semibold uppercase text-xs tracking-wider">High Risk Alerts</span>
             </div>
             <div className="text-3xl font-bold">{highRiskCount} Assets</div>
+            {unavailableMetricCount > 0 ? (
+              <div className="mt-1 text-xs text-secondary-light">{unavailableMetricCount} unavailable</div>
+            ) : null}
           </div>
         </div>
 
